@@ -97,71 +97,98 @@ def get_ephemeris(asteroid_name, ca_date_string):
 # 3. Plot Vmag, phase angle, airmass
 # -----------------------------------------------------
 def plot_ephemeris(asteroid, ca, times, eph):
+       
+    # --------------------------------------------------
+    # Larger fonts everywhere (2× bigger)
+    # --------------------------------------------------
+    plt.rcParams.update({
+        "font.size": 24,
+        "axes.titlesize": 24,
+        "axes.labelsize": 24,
+        "xtick.labelsize": 24,
+        "ytick.labelsize": 24,
+        "legend.fontsize": 24
+    })
 
-    # ---- Extract useful arrays ----
+    # ---- Extract arrays ----
     dt = times.datetime
     V = eph["V"]
     alpha = eph["alpha"]
     airmass = eph["airmass"]
 
+    ra_rate = eph["RA_rate"]
+    dec_rate = eph["DEC_rate"]
+    dec = eph["DEC"]
+    ra_proj = ra_rate * np.cos(np.deg2rad(dec))
+    sky_rate = np.sqrt(ra_proj**2 + dec_rate**2)/60/60 #arcsec/sec#
+
     ca_iso = parse_jpl_date(ca["cd"])
     t_ca = datetime.fromisoformat(ca_iso)
 
-    # ---- Figure ----
-    fig, ax = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
+    # ---- Figure (now 4 rows) ----
+    fig, ax = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
 
     # --------------------------------------------------
-    # 1. Vmag plot with red highlights for V < 17
+    # 1. Vmag
     # --------------------------------------------------
-    ax[0].plot(dt, V, color="black", lw=1.8, label="V mag")
-    ax[0].fill_between(dt, V, where=(V < 17), color="red", alpha=0.4,
-                       label="V < 17 mag")
+    ax[0].plot(dt, V, color="black", lw=2, label="V mag")
+    # ax[0].fill_between(dt, V, where=(V < 17), color="red", alpha=0.35)
     ax[0].set_ylabel("Vmag")
     ax[0].set_ylim(np.min(V)-1, np.max(V)+1)
-    ax[0].invert_yaxis()     # brighter = higher up
-    ax[0].legend(loc="upper right")
-    ax[0].set_title(
-        f"{asteroid} — Close Approach {ca['cd']}  (JD={eph['datetime_jd'][np.argmin(V)]:.2f})"
-    )
+    ax[0].invert_yaxis()
+    ax[0].set_title(f"{asteroid} — Close Approach {ca['cd']}")
 
     # --------------------------------------------------
     # 2. Phase angle
     # --------------------------------------------------
     ax[1].plot(dt, alpha, lw=2)
-    ax[1].set_ylabel("Phase angle (deg)")
+    ax[1].set_ylabel("Phase (deg)")
 
     # --------------------------------------------------
     # 3. Airmass
     # --------------------------------------------------
     ax[2].plot(dt, airmass, lw=2)
-    ax[2].set_ylabel("Airmass")
-    ax[2].set_xlabel("Date (UTC)")
     ax[2].set_ylim(1, 2)
+    ax[2].set_ylabel("Airmass")
 
     # --------------------------------------------------
-    # Add close-approach vertical line on all panels
+    # 4. Sky rate
+    # --------------------------------------------------
+    ax[3].plot(dt, sky_rate, lw=2)
+    ax[3].set_ylabel("Sky rate\n(arcsec/sec)")
+
+    # --------------------------------------------------
+    # Close-approach vertical line
     # --------------------------------------------------
     for a in ax:
-        a.axvline(t_ca, color="blue", ls="--", lw=1.5, alpha=0.9)
+        a.axvline(t_ca, color="blue", ls="--", lw=2, alpha=0.8)
 
     # --------------------------------------------------
-    # Night-time shading (18:00 → next day 04:00 UT)
+    # Night shading 18:00→04:00 UT
     # --------------------------------------------------
-    # Determine unique days in the plot range
     days = sorted(set([d.date() for d in dt]))
-
     for day in days:
         start_night = datetime.combine(day, datetime.min.time()).replace(hour=18)
-        end_night = start_night + timedelta(hours=10)  # 18:00 → 04:00
+        end_night = start_night + timedelta(hours=10)
 
         for a in ax:
             a.axvspan(start_night, end_night,
-                      color="grey", alpha=0.15, linewidth=0)
+                      color="grey", alpha=0.12, linewidth=0)
+
+    # --------------------------------------------------
+    # Format x-axis → NO YEAR
+    # --------------------------------------------------
+    import matplotlib.dates as mdates
+
+    ax[-1].xaxis.set_major_formatter(
+        mdates.DateFormatter("%b %d")   # e.g. “Jan 12 03:00”
+    )
+    ax[-1].set_xlabel("UTC")
 
     plt.tight_layout()
+    # plt.show()
     plt.savefig(f"{asteroid}_plot.png", dpi=200, bbox_inches="tight")
     plt.close()
-
 
 
 # -----------------------------------------------------
@@ -185,7 +212,7 @@ def process_asteroids(asteroid_list):
                 continue
 
             min_v_mag = np.min(eph["V"])
-            if min_v_mag < 17.5:
+            if min_v_mag < 17:
                 plot_ephemeris(asteroid, ca, times, eph)
             else:
                 print(f"skippping, brighters is {min_v_mag}")    
@@ -194,44 +221,6 @@ def process_asteroids(asteroid_list):
 # -----------------------------------------------------
 # Example
 # -----------------------------------------------------
-# asteroids = [
-#     "2020 GE3",
-#     "2023 VR5",
-#     "2025 KR4",
-#     "2023 KH4",
-#     "2023 KZ1",
-#     "2023 BM4",
-#     "2021 KN2",
-#     "2018 GE",
-#     "2011 LT17",
-#     "2003 LN6",
-#     "2025 WC4",
-#     "2015 LM24",
-#     "1997 NC1",
-#     "2007 ML24",
-#     "2023 YO1",
-#     "2007 AA2",
-#     "2025 PN7",
-#     "2025 MB90",
-#     "2020 OM",
-#     "2020 UR1",
-#     "2015 BF",
-#     "2025 OW",
-#     "2024 RM10",
-#     "2000 YV137",
-#     "2019 NY2",
-#     "2016 BV14",
-#     "2013 QC11",
-#     "2025 AL2",
-#     "2025 DU7",
-#     "2025 FY11",
-#     "2023 RL",
-#     "2005 PJ2",
-#     "2025 QM9",
-#     "2006 BC10",
-#     "2017 BP31",
-#     "2007 EK"
-# ]
 
 asteroids = [
     "2017 BP31",
@@ -241,6 +230,15 @@ asteroids = [
     "2025 MB90",
     "1997 NC1",
     "2025 WC4"
-]
+] # Trimester II 2026
+
+# asteroids = [
+#     "1999 AO10",
+#
+# ] # February 2026
+#
+# asteroids = [
+#     "2013 GM3"
+# ] # April 2026
 
 process_asteroids(asteroids)
